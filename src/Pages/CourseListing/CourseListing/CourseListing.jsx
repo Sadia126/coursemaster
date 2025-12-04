@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import axiosPublic from "../../../utils/axiosPublic";
 import { toast } from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
+import Loading from "../../../shared/Loading/Loading";
 
 const CourseListing = () => {
   const [courses, setCourses] = useState([]);
@@ -87,7 +88,7 @@ const CourseListing = () => {
 
       {/* Courses Grid */}
       {loading ? (
-        <div className="text-center">Loading...</div>
+        <Loading></Loading>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {courses.map((course) => (
@@ -95,6 +96,14 @@ const CourseListing = () => {
               key={course._id}
               className="bg-white rounded-xl shadow-lg hover:shadow-2xl transition transform hover:-translate-y-1 duration-300 flex flex-col overflow-hidden"
             >
+              {course.image && (
+                <img
+                  src={course.image}
+                  alt={course.title}
+                  className="h-48 w-full object-cover rounded-t-xl"
+                />
+              )}
+
               {/* Course Info */}
               <div className="p-5 flex flex-col flex-1">
                 <h3 className="text-2xl font-bold mb-2 line-clamp-1">

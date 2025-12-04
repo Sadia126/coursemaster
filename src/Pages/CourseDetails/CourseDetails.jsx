@@ -22,7 +22,7 @@ const CourseDetails = () => {
       } catch (err) {
         console.error(err);
         toast.error(err.response?.data?.message || "Failed to load course");
-        navigate("/courseListing"); 
+        navigate("/courseListing");
       } finally {
         setLoading(false);
       }
@@ -48,8 +48,15 @@ const CourseDetails = () => {
       <div className="bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] rounded-xl shadow-lg p-8 text-white">
         <h1 className="text-4xl font-bold mb-2">{course.title}</h1>
         <p className="text-lg">Instructor: {course.instructor}</p>
-        <p className="text-gray-200 mt-2">{course.description}</p>
       </div>
+      {/* Course Image */}
+      {course.image && (
+        <img
+          src={course.image}
+          alt={course.title}
+          className="w-full h-72 object-cover rounded-xl shadow-md"
+        />
+      )}
 
       <div className="flex flex-col lg:flex-row gap-6">
         {/* Left Column */}
@@ -61,14 +68,7 @@ const CourseDetails = () => {
 
           <div className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition">
             <h2 className="text-2xl font-bold mb-4">Syllabus</h2>
-            <ul className="space-y-3 list-disc list-inside">
-              {course.modules?.map((mod, idx) => (
-                <li key={idx}>
-                  <p className="font-semibold text-lg">{mod.title}</p>
-                  <p className="text-gray-600">{mod.content}</p>
-                </li>
-              ))}
-            </ul>
+            <p className="text-gray-700">{course.syllabus}</p>
           </div>
         </div>
 
