@@ -135,6 +135,22 @@ const Navbar = () => {
                       Dashboard
                     </button>
                   </li>
+                    {/* Admin Dashboard button */}
+                  {user?.roles === "admin" && (
+                    <li>
+                      <button
+                        onClick={() => {
+                          navigate("/adminDashboard");
+                          setOpenMenu(false);
+                        }}
+                        className="btn btn-sm w-full bg-[#638efb] text-white"
+                      >
+                        Admin Dashboard
+                      </button>
+                    </li>
+                  )}
+
+                  <li></li>
                   <li>
                     <button
                       onClick={handleLogout}

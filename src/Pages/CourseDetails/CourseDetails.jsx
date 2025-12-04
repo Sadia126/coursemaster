@@ -12,6 +12,12 @@ const CourseDetails = () => {
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+
+  // Check if user already purchased this course
+  const isEnrolled = user?.purchasedCourses?.some(
+    (courseId) => courseId === id
+  );
+
   // Fetch course by ID
   useEffect(() => {
     const fetchCourse = async () => {
@@ -36,14 +42,17 @@ const CourseDetails = () => {
       return;
     }
 
+    if (isEnrolled) {
+      toast("You are already enrolled in this course!");
+      return;
+    }
+
     try {
-      // show a toast/spinner if you want
       const res = await axiosPublic.post("/api/create-checkout-session", {
         courseId: course._id,
       });
 
       if (res.data?.url) {
-        // redirect to Stripe-hosted Checkout
         window.location.href = res.data.url;
       } else {
         toast.error("Failed to start payment");
@@ -54,7 +63,7 @@ const CourseDetails = () => {
     }
   };
 
-  if (loading) return <Loading></Loading>;
+  if (loading) return <Loading />;
   if (!course) return null;
 
   return (
@@ -64,6 +73,7 @@ const CourseDetails = () => {
         <h1 className="text-4xl font-bold mb-2">{course.title}</h1>
         <p className="text-lg">Instructor: {course.instructor}</p>
       </div>
+
       {/* Course Image */}
       {course.image && (
         <img
@@ -96,9 +106,14 @@ const CourseDetails = () => {
             </p>
             <button
               onClick={handleEnroll}
-              className="btn w-full text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] hover:scale-105 transition transform"
+              disabled={isEnrolled}
+              className={`btn w-full text-white ${
+                isEnrolled
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] hover:scale-105 transition transform"
+              }`}
             >
-              Enroll Now
+              {isEnrolled ? "Already Enrolled" : "Enroll Now"}
             </button>
           </div>
 

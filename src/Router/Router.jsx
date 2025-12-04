@@ -8,6 +8,9 @@ import AdminDashboard from "../Pages/AdminDashboard/AdminDashboard/AdminDashboar
 import CreateCourse from "../Pages/AdminDashboard/CreateCourse/CreateCourse";
 import CourseDetails from "../Pages/CourseDetails/CourseDetails";
 import PaymentSuccess from "../Pages/PaymentSuccess/PaymentSuccess";
+import Dashboard from "../Pages/Dashboard/Dashboard/Dashboard";
+import EnrolledCourse from "../Pages/Dashboard/EnrolledCourse/EnrolledCourse";
+import EnrolledCourseDetails from "../Pages/Dashboard/EnrolledCourseDetails/EnrolledCourseDetails";
 
 export const router = createBrowserRouter([
   {
@@ -41,6 +44,18 @@ export const router = createBrowserRouter([
       {
         path:"/adminDashboard/createCourse",
         element: <CreateCourse></CreateCourse>
+      }
+    ]
+  },{
+    path:"/dashboard",
+    element: <Dashboard></Dashboard>,
+    children:[
+      {
+        path:"/dashboard",
+        element: <EnrolledCourse></EnrolledCourse>
+      },{
+        path:"/dashboard/enrolled-course/:id",
+        element:<EnrolledCourseDetails></EnrolledCourseDetails>
       }
     ]
   }
