@@ -7,6 +7,7 @@ import CourseListing from "../Pages/CourseListing/CourseListing/CourseListing";
 import AdminDashboard from "../Pages/AdminDashboard/AdminDashboard/AdminDashboard";
 import CreateCourse from "../Pages/AdminDashboard/CreateCourse/CreateCourse";
 import CourseDetails from "../Pages/CourseDetails/CourseDetails";
+import PaymentSuccess from "../Pages/PaymentSuccess/PaymentSuccess";
 
 export const router = createBrowserRouter([
   {
@@ -28,6 +29,9 @@ export const router = createBrowserRouter([
         },{
           path:"/courses/:id",
           element:<CourseDetails></CourseDetails>
+        },{
+          path:"/payment-success",
+          element: <PaymentSuccess></PaymentSuccess>
         }
     ],
   },{

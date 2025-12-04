@@ -30,13 +30,28 @@ const CourseDetails = () => {
     fetchCourse();
   }, [id, navigate]);
 
-  const handleEnroll = () => {
+  const handleEnroll = async () => {
     if (!user) {
       navigate("/login");
       return;
     }
-    // Here you can integrate payment/enrollment logic
-    console.log("Enroll now for", course.title);
+
+    try {
+      // show a toast/spinner if you want
+      const res = await axiosPublic.post("/api/create-checkout-session", {
+        courseId: course._id,
+      });
+
+      if (res.data?.url) {
+        // redirect to Stripe-hosted Checkout
+        window.location.href = res.data.url;
+      } else {
+        toast.error("Failed to start payment");
+      }
+    } catch (err) {
+      console.error("Checkout error", err);
+      toast.error(err.response?.data?.message || "Payment error");
+    }
   };
 
   if (loading) return <Loading></Loading>;

@@ -14,8 +14,18 @@ const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
     password: "",
-    adminKey: "",
   });
+
+  // When toggling admin login
+  const handleToggleAdmin = (isAdmin) => {
+    setIsAdminLogin(isAdmin);
+
+    if (isAdmin) {
+      setFormData((prev) => ({ ...prev, email: "admin@gmail.com" }));
+    } else {
+      setFormData((prev) => ({ ...prev, email: "" }));
+    }
+  };
 
   const [loading, setLoading] = useState(false);
 
@@ -25,38 +35,36 @@ const Login = () => {
   };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
+    e.preventDefault();
+    setLoading(true);
 
-  try {
-    const res = await login(formData.email, formData.password);
+    try {
+      const res = await login(formData.email, formData.password);
 
-    if (res?.status === 200) {
-      toast.success("Login successful!");
+      if (res?.status === 200) {
+        toast.success("Login successful!");
+        const userRole = res.data?.user?.roles; // "admin" or "student"
 
-      const userRole = res.data?.user?.roles; // "admin" or "student"
-      console.log(userRole)
-      // --- LOGIN RULES ---
-      if (!isAdminLogin) {
-        // Student mode → Everyone goes to student dashboard
-        navigate("/");
-      } else {
-        // Admin mode → Only admins can access
-        if (userRole === "admin") {
-          navigate("/adminDashboard");
+        // --- LOGIN RULES ---
+        if (!isAdminLogin) {
+          // Student mode → Everyone goes to student dashboard
+          navigate("/");
         } else {
-          toast.error("You are not an admin!");
+          // Admin mode → Only admins can access
+          if (userRole === "admin") {
+            navigate("/adminDashboard");
+          } else {
+            toast.error("You are not an admin!");
+          }
         }
       }
+    } catch (err) {
+      toast.error("Invalid email or password");
+      console.log(err);
+    } finally {
+      setLoading(false);
     }
-  } catch (err) {
-    toast.error("Invalid email or password");
-    console.log(err);
-  } finally {
-    setLoading(false);
-  }
-};
-
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4 md:px-0">
@@ -77,7 +85,7 @@ const Login = () => {
           <div className="flex justify-center gap-3 mb-4">
             <button
               type="button"
-              onClick={() => setIsAdminLogin(false)}
+              onClick={() => handleToggleAdmin(false)}
               className={`px-4 py-2 rounded-lg ${
                 !isAdminLogin ? "bg-blue-500 text-white" : "bg-gray-200"
               }`}
@@ -87,7 +95,7 @@ const Login = () => {
 
             <button
               type="button"
-              onClick={() => setIsAdminLogin(true)}
+              onClick={() => handleToggleAdmin(true)}
               className={`px-4 py-2 rounded-lg ${
                 isAdminLogin ? "bg-blue-500 text-white" : "bg-gray-200"
               }`}
@@ -96,15 +104,19 @@ const Login = () => {
             </button>
           </div>
 
-          <input
-            type="email"
-            name="email"
-            placeholder="Email Address"
-            onChange={handleChange}
-            value={formData.email}
-            required
-            className="input input-bordered w-full"
-          />
+          {!isAdminLogin ? (
+            <input
+              type="email"
+              name="email"
+              placeholder="Email Address"
+              onChange={handleChange}
+              value={formData.email}
+              required
+              className="input input-bordered w-full"
+            />
+          ) : (
+            <input type="hidden" name="email" value="admin@gmail.com" />
+          )}
 
           {/* Field changes based on login type */}
           {!isAdminLogin ? (
