@@ -15,31 +15,27 @@ const EnrolledCourseDetails = () => {
   const [loading, setLoading] = useState(true);
 
   const [openMilestone, setOpenMilestone] = useState(null);
-  // selectedModule will hold: { ...module, milestoneIndex, moduleIndex, globalIndex }
   const [selectedModule, setSelectedModule] = useState(null);
 
-  // assignment submission text & status
   const [assignmentText, setAssignmentText] = useState("");
   const [assignmentSubmitting, setAssignmentSubmitting] = useState(false);
   const [existingSubmission, setExistingSubmission] = useState(null);
 
-  // MCQ states
-  const [mcqAnswers, setMcqAnswers] = useState({}); // { questionIndex: selectedOptionIndex }
+  const [mcqAnswers, setMcqAnswers] = useState({});
   const [mcqSubmitted, setMcqSubmitted] = useState(false);
-  const [mcqResults, setMcqResults] = useState([]); // list of booleans per question
+  const [mcqResults, setMcqResults] = useState([]);
   const [showScoreModal, setShowScoreModal] = useState(false);
   const [scoreSummary, setScoreSummary] = useState({ correct: 0, total: 0 });
 
-  // fetch course + user data and attach user results for UI
+  // Fetch course + user data
   const fetchCourse = async () => {
     try {
       setLoading(true);
       const { data } = await axiosPublic.get(`/api/courses/${id}`);
       const me = await axiosPublic.get("/api/me");
 
-      // attach user's mcqResults and assignments from user doc if present
-      const userMcqResults = me.data.user.mcqResults || [];
-      const userAssignments = me.data.user.assignmentSubmissions || [];
+      const userMcqResults = me.data.user?.mcqResults || [];
+      const userAssignments = me.data.user?.assignmentSubmissions || [];
 
       setCourse({
         ...data.course,
@@ -58,27 +54,28 @@ const EnrolledCourseDetails = () => {
     if (user) fetchCourse();
   }, [user]);
 
-  // flatten helpers: compute globalIndex & maintain mapping
+  // Flatten modules helper
   const flattenModules = (milestones) => {
+    if (!milestones) return [];
     const flat = [];
-    milestones?.forEach((ms, mi) => {
-      ms.modules?.forEach((mod, zi) => {
+    milestones.forEach((ms, mi) => {
+      (ms.modules || []).forEach((mod, zi) => {
         flat.push({ ...mod, milestoneIndex: mi, moduleIndex: zi });
       });
     });
     return flat.map((m, i) => ({ ...m, globalIndex: i }));
   };
 
+  // Open module
   const openModule = async (milestoneIndex, moduleIndex) => {
     if (!course) return;
-    // fetch target module from course data
-    const mod = course.milestones[milestoneIndex].modules[moduleIndex];
+    const mod = course.milestones?.[milestoneIndex]?.modules?.[moduleIndex];
+    if (!mod) return;
+
     const flat = flattenModules(course.milestones);
-    const globalIndex =
-      flat.findIndex(
-        (f) =>
-          f.milestoneIndex === milestoneIndex && f.moduleIndex === moduleIndex
-      ) || 0;
+    const globalIndex = flat.findIndex(
+      (f) => f.milestoneIndex === milestoneIndex && f.moduleIndex === moduleIndex
+    );
 
     const moduleWithIndex = {
       ...mod,
@@ -96,66 +93,43 @@ const EnrolledCourseDetails = () => {
     setExistingSubmission(null);
     setAssignmentText("");
 
-    // if assignment module — fetch existing submission for this user+assignment
     if (moduleWithIndex.moduleType === "assignment") {
       try {
         const res = await axiosPublic.get("/api/assignments/submission", {
-          params: {
-            courseId: id,
-            milestoneIndex,
-            moduleIndex,
-          },
+          params: { courseId: id, milestoneIndex, moduleIndex },
         });
         if (res.data.submission) {
           setExistingSubmission(res.data.submission);
           setAssignmentText(res.data.submission.submissionText || "");
         }
       } catch (err) {
-        // ignore if not exists
         console.warn("assignment fetch err:", err?.response?.data || err);
-      }
-    }
-
-    // if MCQ module and user already had results, show that (optional)
-    if (moduleWithIndex.moduleType === "mcq") {
-      // find user saved results for this module (if your user doc stores module results)
-      const prev = course.userMcqResults?.filter(
-        (r) => r.courseId === id && r.moduleIndex === globalIndex
-      );
-      if (prev && prev.length) {
-        // we won't auto-mark answers — but you could prefill
-        // keep UI fresh
       }
     }
   };
 
-  // embed helper (robust)
+  // Embed video URL
   const getEmbedUrl = (url) => {
     if (!url) return "";
     try {
-      // youtu.be short link
       if (url.includes("youtu.be/")) {
         const videoId = url.split("youtu.be/")[1].split(/[?&]/)[0];
         return `https://www.youtube.com/embed/${videoId}`;
       }
-
-      // youtube watch
       if (url.includes("watch?v=")) {
         const videoId = url.split("watch?v=")[1].split(/[?&]/)[0];
         return `https://www.youtube.com/embed/${videoId}`;
       }
-
-      // already embed link or other provider (vimeo handled by direct URL)
       return url;
     } catch (err) {
       return url;
     }
   };
 
-  // === Assignment submit ===
+  // Assignment submit
   const submitAssignment = async () => {
     if (!selectedModule) return;
-    if (!assignmentText || assignmentText.trim() === "") {
+    if (!assignmentText.trim()) {
       toast.error("Please write something before submitting.");
       return;
     }
@@ -169,6 +143,7 @@ const EnrolledCourseDetails = () => {
       };
       const res = await axiosPublic.post("/api/assignments/submit", payload);
       toast.success("Assignment submitted");
+
       setExistingSubmission({
         ...payload,
         studentEmail: user.email,
@@ -176,7 +151,7 @@ const EnrolledCourseDetails = () => {
         submittedAt: new Date().toISOString(),
         submissionId: res.data.submissionId,
       });
-      // Optionally update course.userAssignments
+
       setCourse((prev) => ({
         ...prev,
         userAssignments: [
@@ -192,49 +167,44 @@ const EnrolledCourseDetails = () => {
       }));
     } catch (err) {
       console.error("submit assignment error:", err);
-      toast.error(
-        err?.response?.data?.message || "Failed to submit assignment"
-      );
+      toast.error(err?.response?.data?.message || "Failed to submit assignment");
     } finally {
       setAssignmentSubmitting(false);
     }
   };
 
-  // === MCQ handling ===
-  // user picks option
+  // MCQ pick option
   const pickMcqOption = (qIndex, optIndex) => {
-    if (mcqSubmitted) return; // no changes after submit
+    if (mcqSubmitted) return;
     setMcqAnswers((prev) => ({ ...prev, [qIndex]: optIndex }));
   };
 
-  // submit MCQ for the module: evaluate locally, show colors & popup, save
+  // MCQ submit
   const submitAllMcqs = async () => {
     if (!selectedModule || selectedModule.moduleType !== "mcq") return;
     const questions =
-      selectedModule.mcqs || selectedModule.mcq
-        ? Array.isArray(selectedModule.mcqs)
-          ? selectedModule.mcqs
+      selectedModule.mcqs ||
+      (selectedModule.mcq
+        ? Array.isArray(selectedModule.mcq)
+          ? selectedModule.mcq
           : [selectedModule.mcq]
-        : [];
+        : []);
 
     if (questions.length === 0) {
       toast.error("No MCQs found in this module.");
       return;
     }
 
-    // generate results
     const results = [];
     let correct = 0;
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
-      // determine correct index defensively:
       const correctIndex =
         typeof q.correctIndex === "number"
           ? q.correctIndex
           : typeof q.answer === "number"
           ? q.answer
-          : // if q.answer is text, find option index
-          typeof q.answer === "string" && Array.isArray(q.options)
+          : typeof q.answer === "string" && Array.isArray(q.options)
           ? q.options.findIndex((o) => o === q.answer)
           : undefined;
 
@@ -249,8 +219,6 @@ const EnrolledCourseDetails = () => {
     setScoreSummary({ correct, total: questions.length });
     setShowScoreModal(true);
 
-    // Save results server-side: one call per module (if backend expects per question you can loop)
-    // Your older backend expected POST /api/save-mcq with { email, courseId, moduleIndex, isCorrect }
     try {
       for (let i = 0; i < results.length; i++) {
         const r = results[i];
@@ -263,7 +231,6 @@ const EnrolledCourseDetails = () => {
         });
       }
       toast.success("MCQ results saved");
-      // update course.userMcqResults to reflect saved state
       setCourse((prev) => ({
         ...prev,
         userMcqResults: [
@@ -273,14 +240,12 @@ const EnrolledCourseDetails = () => {
       }));
     } catch (err) {
       console.error("save mcq error:", err);
-      // don't block user if saving fails
-      toast.error("Failed to save MCQ results (but results shown locally)");
+      toast.error("Failed to save MCQ results (results shown locally)");
     }
   };
 
   if (loading || !course) return <Loading />;
 
-  // get flattened representation to iterate quickly
   const flatModules = flattenModules(course.milestones);
 
   return (
@@ -289,7 +254,7 @@ const EnrolledCourseDetails = () => {
       <p className="text-gray-600 mb-6">Instructor: {course.instructor}</p>
 
       <div className="flex gap-6">
-        {/* Left Content: player / text / assignment / mcq */}
+        {/* Left content */}
         <div className="flex-1 bg-white p-5 rounded shadow min-h-[300px]">
           {!selectedModule && (
             <p className="text-gray-500">Select a module from the right.</p>
@@ -400,16 +365,14 @@ const EnrolledCourseDetails = () => {
                 {selectedModule.title || "MCQ"}
               </h2>
 
-              {/* questions array may be selectedModule.mcqs or selectedModule.mcq */}
               {(() => {
                 const questions =
-                  selectedModule.mcqs && selectedModule.mcqs.length > 0
-                    ? selectedModule.mcqs
-                    : selectedModule.mcq
+                  selectedModule.mcqs ||
+                  (selectedModule.mcq
                     ? Array.isArray(selectedModule.mcq)
                       ? selectedModule.mcq
                       : [selectedModule.mcq]
-                    : [];
+                    : []);
 
                 if (questions.length === 0)
                   return <p className="text-gray-500">No MCQ found.</p>;
@@ -417,7 +380,6 @@ const EnrolledCourseDetails = () => {
                 return (
                   <div className="space-y-4">
                     {questions.map((q, qi) => {
-                      // determine correct index defensively:
                       const correctIndex =
                         typeof q.correctIndex === "number"
                           ? q.correctIndex
@@ -442,29 +404,20 @@ const EnrolledCourseDetails = () => {
                           <div className="font-semibold mb-2">{q.question}</div>
                           <div className="space-y-2">
                             {q.options.map((opt, oi) => {
-                              // determine styling
                               let optClass = "p-2 rounded cursor-pointer";
                               if (submitted) {
-                                // after submit show correct/wrong
                                 if (oi === correctIndex) {
                                   optClass +=
                                     " bg-green-100 border border-green-300";
-                                } else if (
-                                  oi === chosen &&
-                                  chosen !== correctIndex
-                                ) {
-                                  optClass +=
-                                    " bg-red-100 border border-red-300";
+                                } else if (oi === chosen && chosen !== correctIndex) {
+                                  optClass += " bg-red-100 border border-red-300";
                                 } else {
                                   optClass += " bg-gray-50";
                                 }
                               } else {
-                                // before submit highlight chosen
                                 if (chosen === oi) optClass += " bg-blue-50";
-                                else
-                                  optClass += " bg-gray-50 hover:bg-gray-100";
+                                else optClass += " bg-gray-50 hover:bg-gray-100";
                               }
-
                               return (
                                 <div
                                   key={oi}
@@ -513,13 +466,57 @@ const EnrolledCourseDetails = () => {
               })()}
             </>
           )}
+
+          {/* Mark as completed */}
+          {selectedModule &&
+            (selectedModule.moduleType === "video" ||
+              selectedModule.moduleType === "text") && (
+              <div className="mt-4">
+                <button
+                  className="btn text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba]"
+                  onClick={async () => {
+                    try {
+                      await axiosPublic.patch(
+                        `/api/users/${user.email}/completeModule`,
+                        {
+                          courseId: id,
+                          moduleIndex: selectedModule.globalIndex,
+                        }
+                      );
+                      toast.success("Module marked as complete");
+
+                      setCourse((prev) => ({
+                        ...prev,
+                        purchasedCourses: (prev.purchasedCourses || []).map((c) => {
+                          if (c.courseId === id) {
+                            return {
+                              ...c,
+                              completedModules: [
+                                ...(c.completedModules || []),
+                                selectedModule.globalIndex,
+                              ],
+                            };
+                          }
+                          return c;
+                        }),
+                      }));
+                    } catch (err) {
+                      console.error("Mark module complete error:", err);
+                      toast.error("Failed to mark module complete");
+                    }
+                  }}
+                >
+                  Mark as Completed
+                </button>
+              </div>
+            )}
         </div>
 
-        {/* Right: Milestones + Modules */}
+        {/* Right sidebar */}
         <div className="w-80 bg-white p-4 rounded shadow max-h-[70vh] overflow-auto">
           <h3 className="font-semibold mb-3">Course Outline</h3>
 
-          {course.milestones.map((ms, mIndex) => (
+          {(course.milestones || []).map((ms, mIndex) => (
             <div key={mIndex} className="mb-3">
               <div
                 className="flex justify-between p-2 bg-gray-100 rounded cursor-pointer"
@@ -533,17 +530,11 @@ const EnrolledCourseDetails = () => {
 
               {openMilestone === mIndex && (
                 <ul className="pl-3 mt-2 space-y-1">
-                  {ms.modules.map((mod, modIndex) => {
-                    // compute globalIndex
-                    const globalIndex = flattenModules(
-                      course.milestones
-                    ).findIndex(
-                      (f) =>
-                        f.milestoneIndex === mIndex &&
-                        f.moduleIndex === modIndex
+                  {(ms.modules || []).map((mod, modIndex) => {
+                    const globalIndex = flattenModules(course.milestones).findIndex(
+                      (f) => f.milestoneIndex === mIndex && f.moduleIndex === modIndex
                     );
 
-                    // check if user submitted MCQ for this module or assignment
                     const prevMcq = course.userMcqResults?.find(
                       (r) => r.courseId === id && r.moduleIndex === globalIndex
                     );
@@ -560,21 +551,14 @@ const EnrolledCourseDetails = () => {
                         className="p-2 rounded cursor-pointer hover:bg-gray-100 flex justify-between items-center"
                         onClick={() => openModule(mIndex, modIndex)}
                       >
-                        <span className="truncate">
-                          {mod.title || mod.moduleType}
-                        </span>
+                        <span className="truncate">{mod.title || mod.moduleType}</span>
                         <div className="flex items-center gap-2">
                           {mod.moduleType === "mcq" && prevMcq && (
-                            <span className="text-green-600 text-sm">
-                              MCQ ✓
-                            </span>
+                            <span className="text-green-600 text-sm">MCQ ✓</span>
                           )}
-                          {mod.moduleType === "assignment" &&
-                            prevAssignment && (
-                              <span className="text-green-600 text-sm">
-                                Submitted
-                              </span>
-                            )}
+                          {mod.moduleType === "assignment" && prevAssignment && (
+                            <span className="text-green-600 text-sm">Submitted</span>
+                          )}
                         </div>
                       </li>
                     );
@@ -585,31 +569,6 @@ const EnrolledCourseDetails = () => {
           ))}
         </div>
       </div>
-
-      {/* Score modal (simple) */}
-      {showScoreModal && (
-        <div
-          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
-          onClick={() => setShowScoreModal(false)}
-        >
-          <div
-            className="bg-white p-6 rounded shadow-lg max-w-sm w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="text-xl font-semibold mb-2">MCQ Results</h3>
-            <p className="mb-4">
-              You scored <strong>{scoreSummary.correct}</strong> out of{" "}
-              <strong>{scoreSummary.total}</strong>
-            </p>
-            <button
-              className="btn text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] w-full"
-              onClick={() => setShowScoreModal(false)}
-            >
-              Close
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
