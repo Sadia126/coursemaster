@@ -11,6 +11,7 @@ import PaymentSuccess from "../Pages/PaymentSuccess/PaymentSuccess";
 import Dashboard from "../Pages/Dashboard/Dashboard/Dashboard";
 import EnrolledCourse from "../Pages/Dashboard/EnrolledCourse/EnrolledCourse";
 import EnrolledCourseDetails from "../Pages/Dashboard/EnrolledCourseDetails/EnrolledCourseDetails";
+import EnrollmentManagement from "../Pages/AdminDashboard/EnrollmentManagment/EnrollmentManagment";
 
 export const router = createBrowserRouter([
   {
@@ -44,6 +45,9 @@ export const router = createBrowserRouter([
       {
         path:"/adminDashboard/createCourse",
         element: <CreateCourse></CreateCourse>
+      },{
+        path:"/adminDashboard/EnrollmentManagment",
+        element:<EnrollmentManagement></EnrollmentManagement>
       }
     ]
   },{

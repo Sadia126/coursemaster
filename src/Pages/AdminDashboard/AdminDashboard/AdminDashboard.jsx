@@ -96,14 +96,14 @@ const AdminDashboard = () => {
                 </li>
                 <li>
                   <NavLink
-                    to="/dashboard/allServiceRequest"
+                    to="/adminDashboard/EnrollmentManagment"
                     className={({ isActive }) =>
                       `flex items-center gap-2 py-2 px-3 rounded hover:text-white hover:bg-[#638efb] ${
                         isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
                       }`
                     }
                   >
-                    <FaUsers /> All Services Request
+                    <FaUsers /> Enrollment Management
                   </NavLink>
                 </li>
                 <li>
