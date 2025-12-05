@@ -13,6 +13,8 @@ import EnrolledCourse from "../Pages/Dashboard/EnrolledCourse/EnrolledCourse";
 import EnrolledCourseDetails from "../Pages/Dashboard/EnrolledCourseDetails/EnrolledCourseDetails";
 import EnrollmentManagement from "../Pages/AdminDashboard/EnrollmentManagment/EnrollmentManagment";
 import SubmittedAssignment from "../Pages/AdminDashboard/SubmittedAssignment/SubmittedAssignment";
+import AdminRoute from "./AdminRoute";
+import PrivateRoute from "./PrivateRoute";
 
 export const router = createBrowserRouter([
   {
@@ -22,50 +24,65 @@ export const router = createBrowserRouter([
       {
         path: "/",
         element: <Home></Home>,
-      },{
-          path:"/register",
-          element:<Register></Register>
-        },{
-          path:"/login",
-          element: <Login></Login>
-        },{
-          path:"/courseListing",
-          element:<CourseListing></CourseListing>
-        },{
-          path:"/courses/:id",
-          element:<CourseDetails></CourseDetails>
-        },{
-          path:"/payment-success",
-          element: <PaymentSuccess></PaymentSuccess>
-        }
+      },
+      {
+        path: "/register",
+        element: <Register></Register>,
+      },
+      {
+        path: "/login",
+        element: <Login></Login>,
+      },
+      {
+        path: "/courseListing",
+        element: <CourseListing></CourseListing>,
+      },
+      {
+        path: "/courses/:id",
+        element: <CourseDetails></CourseDetails>,
+      },
+      {
+        path: "/payment-success",
+        element: <PaymentSuccess></PaymentSuccess>,
+      },
     ],
-  },{
-    path:"/adminDashboard",
-    element: <AdminDashboard></AdminDashboard>,
-    children:[
+  },
+  {
+    path: "/adminDashboard",
+    element: (
+      <AdminRoute>
+        <PrivateRoute>
+          <AdminDashboard></AdminDashboard>
+        </PrivateRoute>
+      </AdminRoute>
+    ),
+    children: [
       {
-        path:"/adminDashboard/createCourse",
-        element: <CreateCourse></CreateCourse>
-      },{
-        path:"/adminDashboard/EnrollmentManagment",
-        element:<EnrollmentManagement></EnrollmentManagement>
-      }
-      ,{
-        path:"/adminDashboard/AssignmentManagment",
-        element:<SubmittedAssignment></SubmittedAssignment>
-      }
-    ]
-  },{
-    path:"/dashboard",
-    element: <Dashboard></Dashboard>,
-    children:[
+        path: "/adminDashboard/createCourse",
+        element: <AdminRoute><PrivateRoute><CreateCourse></CreateCourse></PrivateRoute></AdminRoute>,
+      },
       {
-        path:"/dashboard",
-        element: <EnrolledCourse></EnrolledCourse>
-      },{
-        path:"/dashboard/enrolled-course/:id",
-        element:<EnrolledCourseDetails></EnrolledCourseDetails>
-      }
-    ]
-  }
+        path: "/adminDashboard/EnrollmentManagment",
+        element: <AdminRoute><PrivateRoute><EnrollmentManagement></EnrollmentManagement></PrivateRoute></AdminRoute>,
+      },
+      {
+        path: "/adminDashboard/AssignmentManagment",
+        element: <AdminRoute><PrivateRoute><SubmittedAssignment></SubmittedAssignment></PrivateRoute></AdminRoute>,
+      },
+    ],
+  },
+  {
+    path: "/dashboard",
+    element: <PrivateRoute><Dashboard></Dashboard></PrivateRoute>,
+    children: [
+      {
+        path: "/dashboard",
+        element: <PrivateRoute><EnrolledCourse></EnrolledCourse></PrivateRoute>,
+      },
+      {
+        path: "/dashboard/enrolled-course/:id",
+        element: <PrivateRoute><EnrolledCourseDetails></EnrolledCourseDetails></PrivateRoute>,
+      },
+    ],
+  },
 ]);

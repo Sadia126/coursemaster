@@ -41,31 +41,6 @@ const Navbar = () => {
         </NavLink>
       </li>
 
-      <li>
-        <NavLink
-          to="/allJobsRequest"
-          className={({ isActive }) =>
-            isActive
-              ? "text-[#638efb] font-semibold border-b-2 border-[#638efb]"
-              : ""
-          }
-        >
-          All Jobs Request
-        </NavLink>
-      </li>
-
-      <li>
-        <NavLink
-          to="/itemRent"
-          className={({ isActive }) =>
-            isActive
-              ? "text-[#638efb] font-semibold border-b-2 border-[#638efb]"
-              : ""
-          }
-        >
-          All Item For Rent
-        </NavLink>
-      </li>
     </>
   );
 
