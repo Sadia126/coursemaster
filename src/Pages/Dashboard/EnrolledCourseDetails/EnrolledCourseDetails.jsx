@@ -1,156 +1,615 @@
+/* eslint-disable no-unused-vars */
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import useAuth from "../../../hooks/useAuth";
 import axiosPublic from "../../../utils/axiosPublic";
 import Loading from "../../../shared/Loading/Loading";
+import { FaAngleDown, FaAngleUp } from "react-icons/fa";
+import toast from "react-hot-toast";
 
 const EnrolledCourseDetails = () => {
   const { id } = useParams();
   const { user } = useAuth();
+
   const [course, setCourse] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [selectedModuleIndex, setSelectedModuleIndex] = useState(0); // default first module
 
+  const [openMilestone, setOpenMilestone] = useState(null);
+  // selectedModule will hold: { ...module, milestoneIndex, moduleIndex, globalIndex }
+  const [selectedModule, setSelectedModule] = useState(null);
+
+  // assignment submission text & status
+  const [assignmentText, setAssignmentText] = useState("");
+  const [assignmentSubmitting, setAssignmentSubmitting] = useState(false);
+  const [existingSubmission, setExistingSubmission] = useState(null);
+
+  // MCQ states
+  const [mcqAnswers, setMcqAnswers] = useState({}); // { questionIndex: selectedOptionIndex }
+  const [mcqSubmitted, setMcqSubmitted] = useState(false);
+  const [mcqResults, setMcqResults] = useState([]); // list of booleans per question
+  const [showScoreModal, setShowScoreModal] = useState(false);
+  const [scoreSummary, setScoreSummary] = useState({ correct: 0, total: 0 });
+
+  // fetch course + user data and attach user results for UI
   const fetchCourse = async () => {
     try {
       setLoading(true);
       const { data } = await axiosPublic.get(`/api/courses/${id}`);
-      const userData = await axiosPublic.get("/api/me");
+      const me = await axiosPublic.get("/api/me");
 
-      const purchasedCourse = userData.data.user.purchasedCourses.find(
-        (c) => c._id === id || c.courseId === id
-      );
+      // attach user's mcqResults and assignments from user doc if present
+      const userMcqResults = me.data.user.mcqResults || [];
+      const userAssignments = me.data.user.assignmentSubmissions || [];
 
       setCourse({
         ...data.course,
-        completedModules: purchasedCourse?.completedModules || [],
+        userMcqResults,
+        userAssignments,
       });
     } catch (err) {
-      console.error(err);
+      console.error("Fetch course error:", err);
+      toast.error("Failed to load course");
     } finally {
       setLoading(false);
     }
-  };
-
-  const getEmbedUrl = (url) => {
-    if (!url) return "";
-    // handle YouTube links
-    const ytMatch = url.match(
-      /(?:youtube\.com\/watch\?v=|youtu\.be\/)([^\s&]+)/
-    );
-    if (ytMatch && ytMatch[1])
-      return `https://www.youtube.com/embed/${ytMatch[1]}`;
-    // handle Vimeo links (optional)
-    const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
-    if (vimeoMatch && vimeoMatch[1])
-      return `https://player.vimeo.com/video/${vimeoMatch[1]}`;
-    return url; // fallback
   };
 
   useEffect(() => {
     if (user) fetchCourse();
   }, [user]);
 
-  const handleCompleteModule = async (moduleIndex) => {
-    try {
-      await axiosPublic.patch(`/api/users/${user.email}/completeModule`, {
-        courseId: id,
-        moduleIndex,
+  // flatten helpers: compute globalIndex & maintain mapping
+  const flattenModules = (milestones) => {
+    const flat = [];
+    milestones?.forEach((ms, mi) => {
+      ms.modules?.forEach((mod, zi) => {
+        flat.push({ ...mod, milestoneIndex: mi, moduleIndex: zi });
       });
+    });
+    return flat.map((m, i) => ({ ...m, globalIndex: i }));
+  };
 
+  const openModule = async (milestoneIndex, moduleIndex) => {
+    if (!course) return;
+    // fetch target module from course data
+    const mod = course.milestones[milestoneIndex].modules[moduleIndex];
+    const flat = flattenModules(course.milestones);
+    const globalIndex =
+      flat.findIndex(
+        (f) =>
+          f.milestoneIndex === milestoneIndex && f.moduleIndex === moduleIndex
+      ) || 0;
+
+    const moduleWithIndex = {
+      ...mod,
+      milestoneIndex,
+      moduleIndex,
+      globalIndex,
+    };
+
+    setSelectedModule(moduleWithIndex);
+    setMcqAnswers({});
+    setMcqSubmitted(false);
+    setMcqResults([]);
+    setScoreSummary({ correct: 0, total: 0 });
+    setShowScoreModal(false);
+    setExistingSubmission(null);
+    setAssignmentText("");
+
+    // if assignment module — fetch existing submission for this user+assignment
+    if (moduleWithIndex.moduleType === "assignment") {
+      try {
+        const res = await axiosPublic.get("/api/assignments/submission", {
+          params: {
+            courseId: id,
+            milestoneIndex,
+            moduleIndex,
+          },
+        });
+        if (res.data.submission) {
+          setExistingSubmission(res.data.submission);
+          setAssignmentText(res.data.submission.submissionText || "");
+        }
+      } catch (err) {
+        // ignore if not exists
+        console.warn("assignment fetch err:", err?.response?.data || err);
+      }
+    }
+
+    // if MCQ module and user already had results, show that (optional)
+    if (moduleWithIndex.moduleType === "mcq") {
+      // find user saved results for this module (if your user doc stores module results)
+      const prev = course.userMcqResults?.filter(
+        (r) => r.courseId === id && r.moduleIndex === globalIndex
+      );
+      if (prev && prev.length) {
+        // we won't auto-mark answers — but you could prefill
+        // keep UI fresh
+      }
+    }
+  };
+
+  // embed helper (robust)
+  const getEmbedUrl = (url) => {
+    if (!url) return "";
+    try {
+      // youtu.be short link
+      if (url.includes("youtu.be/")) {
+        const videoId = url.split("youtu.be/")[1].split(/[?&]/)[0];
+        return `https://www.youtube.com/embed/${videoId}`;
+      }
+
+      // youtube watch
+      if (url.includes("watch?v=")) {
+        const videoId = url.split("watch?v=")[1].split(/[?&]/)[0];
+        return `https://www.youtube.com/embed/${videoId}`;
+      }
+
+      // already embed link or other provider (vimeo handled by direct URL)
+      return url;
+    } catch (err) {
+      return url;
+    }
+  };
+
+  // === Assignment submit ===
+  const submitAssignment = async () => {
+    if (!selectedModule) return;
+    if (!assignmentText || assignmentText.trim() === "") {
+      toast.error("Please write something before submitting.");
+      return;
+    }
+    setAssignmentSubmitting(true);
+    try {
+      const payload = {
+        courseId: id,
+        milestoneIndex: selectedModule.milestoneIndex,
+        moduleIndex: selectedModule.moduleIndex,
+        submissionText: assignmentText,
+      };
+      const res = await axiosPublic.post("/api/assignments/submit", payload);
+      toast.success("Assignment submitted");
+      setExistingSubmission({
+        ...payload,
+        studentEmail: user.email,
+        studentName: user.name,
+        submittedAt: new Date().toISOString(),
+        submissionId: res.data.submissionId,
+      });
+      // Optionally update course.userAssignments
       setCourse((prev) => ({
         ...prev,
-        completedModules: [...prev.completedModules, moduleIndex],
+        userAssignments: [
+          ...(prev.userAssignments || []),
+          {
+            courseId: id,
+            milestoneIndex: selectedModule.milestoneIndex,
+            moduleIndex: selectedModule.moduleIndex,
+            submissionText: assignmentText,
+            submittedAt: new Date().toISOString(),
+          },
+        ],
       }));
     } catch (err) {
-      console.error(err);
+      console.error("submit assignment error:", err);
+      toast.error(
+        err?.response?.data?.message || "Failed to submit assignment"
+      );
+    } finally {
+      setAssignmentSubmitting(false);
+    }
+  };
+
+  // === MCQ handling ===
+  // user picks option
+  const pickMcqOption = (qIndex, optIndex) => {
+    if (mcqSubmitted) return; // no changes after submit
+    setMcqAnswers((prev) => ({ ...prev, [qIndex]: optIndex }));
+  };
+
+  // submit MCQ for the module: evaluate locally, show colors & popup, save
+  const submitAllMcqs = async () => {
+    if (!selectedModule || selectedModule.moduleType !== "mcq") return;
+    const questions =
+      selectedModule.mcqs || selectedModule.mcq
+        ? Array.isArray(selectedModule.mcqs)
+          ? selectedModule.mcqs
+          : [selectedModule.mcq]
+        : [];
+
+    if (questions.length === 0) {
+      toast.error("No MCQs found in this module.");
+      return;
+    }
+
+    // generate results
+    const results = [];
+    let correct = 0;
+    for (let i = 0; i < questions.length; i++) {
+      const q = questions[i];
+      // determine correct index defensively:
+      const correctIndex =
+        typeof q.correctIndex === "number"
+          ? q.correctIndex
+          : typeof q.answer === "number"
+          ? q.answer
+          : // if q.answer is text, find option index
+          typeof q.answer === "string" && Array.isArray(q.options)
+          ? q.options.findIndex((o) => o === q.answer)
+          : undefined;
+
+      const chosen = mcqAnswers[i];
+      const isCorrect = chosen !== undefined && chosen === correctIndex;
+      results.push({ questionIndex: i, chosen, correctIndex, isCorrect });
+      if (isCorrect) correct++;
+    }
+
+    setMcqResults(results);
+    setMcqSubmitted(true);
+    setScoreSummary({ correct, total: questions.length });
+    setShowScoreModal(true);
+
+    // Save results server-side: one call per module (if backend expects per question you can loop)
+    // Your older backend expected POST /api/save-mcq with { email, courseId, moduleIndex, isCorrect }
+    try {
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        await axiosPublic.post("/api/save-mcq", {
+          email: user.email,
+          courseId: id,
+          moduleIndex: selectedModule.globalIndex,
+          questionIndex: r.questionIndex,
+          isCorrect: !!r.isCorrect,
+        });
+      }
+      toast.success("MCQ results saved");
+      // update course.userMcqResults to reflect saved state
+      setCourse((prev) => ({
+        ...prev,
+        userMcqResults: [
+          ...(prev.userMcqResults || []),
+          { courseId: id, moduleIndex: selectedModule.globalIndex, results },
+        ],
+      }));
+    } catch (err) {
+      console.error("save mcq error:", err);
+      // don't block user if saving fails
+      toast.error("Failed to save MCQ results (but results shown locally)");
     }
   };
 
   if (loading || !course) return <Loading />;
 
-  const selectedModule = course.modules[selectedModuleIndex];
-  const progress =
-    Math.floor(
-      (course.completedModules.length / course.modules.length) * 100
-    ) || 0;
+  // get flattened representation to iterate quickly
+  const flatModules = flattenModules(course.milestones);
 
   return (
     <div className="max-w-6xl mx-auto p-6">
-      <h1 className="text-3xl font-bold mb-4">{course.title}</h1>
-      <p className="mb-4 text-gray-600">Instructor: {course.instructor}</p>
+      <h1 className="text-3xl font-bold mb-2">{course.title}</h1>
+      <p className="text-gray-600 mb-6">Instructor: {course.instructor}</p>
 
-      <div className="w-full bg-gray-200 rounded-full h-4 mb-4">
-        <div
-          className="bg-blue-500 h-4 rounded-full"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-      <p className="text-right text-gray-500 font-semibold mb-6">
-        {progress}% Completed
-      </p>
-
-      {/* Two-column layout */}
       <div className="flex gap-6">
-        {/* Left side: Video player */}
-        <div className="flex-1 bg-gray-50 p-4 rounded shadow">
-          <h2 className="text-xl font-semibold mb-2">{selectedModule.title}</h2>
-          {selectedModule.content ? (
-            <iframe
-              width="100%"
-              height="400"
-              src={getEmbedUrl(selectedModule.content)}
-              title={selectedModule.title}
-              frameBorder="0"
-              allowFullScreen
-            ></iframe>
-          ) : (
-            <p>No video available for this module.</p>
+        {/* Left Content: player / text / assignment / mcq */}
+        <div className="flex-1 bg-white p-5 rounded shadow min-h-[300px]">
+          {!selectedModule && (
+            <p className="text-gray-500">Select a module from the right.</p>
           )}
 
-          {!course.completedModules.includes(selectedModuleIndex) && (
-            <button
-              className="btn bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white mt-4"
-              onClick={() => handleCompleteModule(selectedModuleIndex)}
-            >
-              Mark as Completed
-            </button>
+          {/* VIDEO */}
+          {selectedModule?.moduleType === "video" && (
+            <>
+              <h2 className="text-xl font-semibold mb-2">
+                {selectedModule.title}
+              </h2>
+              <div className="w-full aspect-video mb-3">
+                <iframe
+                  title={selectedModule.title}
+                  src={getEmbedUrl(selectedModule.videoUrl)}
+                  width="100%"
+                  height="100%"
+                  className="rounded w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              </div>
+              {selectedModule.description && (
+                <div className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {selectedModule.description}
+                </div>
+              )}
+            </>
           )}
-          {course.completedModules.includes(selectedModuleIndex) && (
-            <span className="text-green-600 font-semibold mt-4 block">
-              Done
-            </span>
+
+          {/* TEXT */}
+          {selectedModule?.moduleType === "text" && (
+            <>
+              <h2 className="text-xl font-semibold mb-2">
+                {selectedModule.title}
+              </h2>
+              <div className="p-3 whitespace-pre-wrap">
+                {selectedModule.content || selectedModule.text || "No content"}
+              </div>
+            </>
+          )}
+
+          {/* ASSIGNMENT */}
+          {selectedModule?.moduleType === "assignment" && (
+            <>
+              <h2 className="text-xl font-semibold mb-2">
+                {selectedModule.title || "Assignment"}
+              </h2>
+
+              <div className="mb-3 p-3 bg-gray-50 rounded">
+                <strong>Instructions:</strong>
+                <div className="mt-2 whitespace-pre-wrap">
+                  {selectedModule.assignment ||
+                    selectedModule.content ||
+                    "No instructions provided."}
+                </div>
+              </div>
+
+              {existingSubmission ? (
+                <div className="mb-3 p-3 bg-green-50 rounded border">
+                  <p className="font-semibold text-green-700">You submitted:</p>
+                  <div className="mt-2 whitespace-pre-wrap">
+                    {existingSubmission.submissionText}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-2">
+                    Submitted at:{" "}
+                    {new Date(existingSubmission.submittedAt).toLocaleString()}
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    className="textarea textarea-bordered w-full h-40"
+                    placeholder="Write your assignment answer here..."
+                    value={assignmentText}
+                    onChange={(e) => setAssignmentText(e.target.value)}
+                    disabled={assignmentSubmitting}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      className={`btn text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] ${
+                        assignmentSubmitting ? "loading" : ""
+                      }`}
+                      onClick={submitAssignment}
+                      disabled={assignmentSubmitting}
+                    >
+                      {assignmentSubmitting
+                        ? "Submitting..."
+                        : "Submit Assignment"}
+                    </button>
+                    <button
+                      className="btn btn-ghost"
+                      onClick={() => setAssignmentText("")}
+                      disabled={assignmentSubmitting}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </>
+              )}
+            </>
+          )}
+
+          {/* MCQ */}
+          {selectedModule?.moduleType === "mcq" && (
+            <>
+              <h2 className="text-xl font-semibold mb-2">
+                {selectedModule.title || "MCQ"}
+              </h2>
+
+              {/* questions array may be selectedModule.mcqs or selectedModule.mcq */}
+              {(() => {
+                const questions =
+                  selectedModule.mcqs && selectedModule.mcqs.length > 0
+                    ? selectedModule.mcqs
+                    : selectedModule.mcq
+                    ? Array.isArray(selectedModule.mcq)
+                      ? selectedModule.mcq
+                      : [selectedModule.mcq]
+                    : [];
+
+                if (questions.length === 0)
+                  return <p className="text-gray-500">No MCQ found.</p>;
+
+                return (
+                  <div className="space-y-4">
+                    {questions.map((q, qi) => {
+                      // determine correct index defensively:
+                      const correctIndex =
+                        typeof q.correctIndex === "number"
+                          ? q.correctIndex
+                          : typeof q.answer === "number"
+                          ? q.answer
+                          : typeof q.answer === "string" &&
+                            Array.isArray(q.options)
+                          ? q.options.findIndex((o) => o === q.answer)
+                          : undefined;
+
+                      const chosen = mcqAnswers[qi];
+                      const submitted = mcqSubmitted;
+                      const isCorrect = submitted
+                        ? mcqResults[qi]?.isCorrect
+                        : undefined;
+
+                      return (
+                        <div
+                          key={qi}
+                          className="p-3 border rounded bg-white shadow-sm"
+                        >
+                          <div className="font-semibold mb-2">{q.question}</div>
+                          <div className="space-y-2">
+                            {q.options.map((opt, oi) => {
+                              // determine styling
+                              let optClass = "p-2 rounded cursor-pointer";
+                              if (submitted) {
+                                // after submit show correct/wrong
+                                if (oi === correctIndex) {
+                                  optClass +=
+                                    " bg-green-100 border border-green-300";
+                                } else if (
+                                  oi === chosen &&
+                                  chosen !== correctIndex
+                                ) {
+                                  optClass +=
+                                    " bg-red-100 border border-red-300";
+                                } else {
+                                  optClass += " bg-gray-50";
+                                }
+                              } else {
+                                // before submit highlight chosen
+                                if (chosen === oi) optClass += " bg-blue-50";
+                                else
+                                  optClass += " bg-gray-50 hover:bg-gray-100";
+                              }
+
+                              return (
+                                <div
+                                  key={oi}
+                                  className={optClass}
+                                  onClick={() => pickMcqOption(qi, oi)}
+                                >
+                                  <label className="flex items-center gap-2">
+                                    <input
+                                      type="radio"
+                                      checked={mcqAnswers[qi] === oi}
+                                      readOnly
+                                      className="mr-2"
+                                    />
+                                    <span>{opt}</span>
+                                  </label>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    <div className="flex gap-2">
+                      <button
+                        className="btn text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba]"
+                        onClick={submitAllMcqs}
+                        disabled={mcqSubmitted}
+                      >
+                        {mcqSubmitted ? "Submitted" : "Submit MCQs"}
+                      </button>
+                      <button
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          setMcqAnswers({});
+                          setMcqSubmitted(false);
+                          setMcqResults([]);
+                        }}
+                        disabled={mcqSubmitted}
+                      >
+                        Reset Answers
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()}
+            </>
           )}
         </div>
 
-        {/* Right side: Module sidebar */}
-        <div className="w-64 bg-white p-4 rounded shadow overflow-y-auto max-h-[500px]">
-          <h3 className="font-semibold mb-4">Modules</h3>
-          <ul className="space-y-2">
-            {course.modules.map((mod, idx) => {
-              const completed = course.completedModules.includes(idx);
-              return (
-                <li
-                  key={idx}
-                  className={`p-2 rounded cursor-pointer ${
-                    selectedModuleIndex === idx
-                      ? "bg-blue-100 font-semibold"
-                      : completed
-                      ? "bg-green-100"
-                      : "bg-gray-50 hover:bg-gray-100"
-                  }`}
-                  onClick={() => setSelectedModuleIndex(idx)}
-                >
-                  {mod.title}
-                  {completed && (
-                    <span className="ml-2 text-green-600 font-semibold">✔</span>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
+        {/* Right: Milestones + Modules */}
+        <div className="w-80 bg-white p-4 rounded shadow max-h-[70vh] overflow-auto">
+          <h3 className="font-semibold mb-3">Course Outline</h3>
+
+          {course.milestones.map((ms, mIndex) => (
+            <div key={mIndex} className="mb-3">
+              <div
+                className="flex justify-between p-2 bg-gray-100 rounded cursor-pointer"
+                onClick={() =>
+                  setOpenMilestone(openMilestone === mIndex ? null : mIndex)
+                }
+              >
+                <span>{ms.title}</span>
+                {openMilestone === mIndex ? <FaAngleUp /> : <FaAngleDown />}
+              </div>
+
+              {openMilestone === mIndex && (
+                <ul className="pl-3 mt-2 space-y-1">
+                  {ms.modules.map((mod, modIndex) => {
+                    // compute globalIndex
+                    const globalIndex = flattenModules(
+                      course.milestones
+                    ).findIndex(
+                      (f) =>
+                        f.milestoneIndex === mIndex &&
+                        f.moduleIndex === modIndex
+                    );
+
+                    // check if user submitted MCQ for this module or assignment
+                    const prevMcq = course.userMcqResults?.find(
+                      (r) => r.courseId === id && r.moduleIndex === globalIndex
+                    );
+                    const prevAssignment = course.userAssignments?.find(
+                      (a) =>
+                        a.courseId === id &&
+                        Number(a.milestoneIndex) === mIndex &&
+                        Number(a.moduleIndex) === modIndex
+                    );
+
+                    return (
+                      <li
+                        key={modIndex}
+                        className="p-2 rounded cursor-pointer hover:bg-gray-100 flex justify-between items-center"
+                        onClick={() => openModule(mIndex, modIndex)}
+                      >
+                        <span className="truncate">
+                          {mod.title || mod.moduleType}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {mod.moduleType === "mcq" && prevMcq && (
+                            <span className="text-green-600 text-sm">
+                              MCQ ✓
+                            </span>
+                          )}
+                          {mod.moduleType === "assignment" &&
+                            prevAssignment && (
+                              <span className="text-green-600 text-sm">
+                                Submitted
+                              </span>
+                            )}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+          ))}
         </div>
       </div>
+
+      {/* Score modal (simple) */}
+      {showScoreModal && (
+        <div
+          className="fixed inset-0 bg-black/40 flex items-center justify-center z-50"
+          onClick={() => setShowScoreModal(false)}
+        >
+          <div
+            className="bg-white p-6 rounded shadow-lg max-w-sm w-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-xl font-semibold mb-2">MCQ Results</h3>
+            <p className="mb-4">
+              You scored <strong>{scoreSummary.correct}</strong> out of{" "}
+              <strong>{scoreSummary.total}</strong>
+            </p>
+            <button
+              className="btn text-white bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] w-full"
+              onClick={() => setShowScoreModal(false)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

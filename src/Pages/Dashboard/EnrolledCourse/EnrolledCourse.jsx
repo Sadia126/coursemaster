@@ -9,7 +9,7 @@ const EnrolledCourse = () => {
   const [enrolledCourses, setEnrolledCourses] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  
+
   const fetchEnrolledCourses = async () => {
     try {
       setLoading(true);
@@ -27,7 +27,7 @@ const EnrolledCourse = () => {
           const course = res.data.course;
           return {
             ...course,
-            completedModules: c.completedModules || [], // store completed modules
+            completedModules: c.completedModules || [],
           };
         })
       );
@@ -40,11 +40,11 @@ const EnrolledCourse = () => {
     }
   };
 
+  console.log(enrolledCourses);
+
   useEffect(() => {
     if (user) fetchEnrolledCourses();
   }, [user]);
-
-  
 
   if (loading) return <Loading />;
 
@@ -63,10 +63,18 @@ const EnrolledCourse = () => {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {enrolledCourses.map((course) => {
-          const progress =
-            Math.floor(
-              (course.completedModules.length / course.modules.length) * 100
+          // calculate total modules dynamically
+          const totalModules =
+            course.milestones?.reduce(
+              (count, m) => count + (m.modules?.length || 0),
+              0
             ) || 0;
+
+          const completed = course.completedModules?.length || 0;
+
+          const progress = totalModules
+            ? Math.floor((completed / totalModules) * 100)
+            : 0;
 
           return (
             <div
@@ -87,7 +95,7 @@ const EnrolledCourse = () => {
 
               <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
                 <div
-                  className="bg-blue-500 h-4 rounded-full"
+                  className="h-4 rounded-full bg-blue-500"
                   style={{ width: `${progress}%` }}
                 ></div>
               </div>
@@ -97,7 +105,9 @@ const EnrolledCourse = () => {
 
               <button
                 className="btn bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white w-full"
-                onClick={() => navigate(`/dashboard/enrolled-course/${course._id}`)}
+                onClick={() =>
+                  navigate(`/dashboard/enrolled-course/${course._id}`)
+                }
               >
                 Go to Course Details
               </button>
@@ -108,6 +118,5 @@ const EnrolledCourse = () => {
     </div>
   );
 };
-
 
 export default EnrolledCourse;
