@@ -13,7 +13,7 @@ const AdminDashboard = () => {
   return (
     <div className="drawer lg:drawer-open">
       <input id="admin-drawer" type="checkbox" className="drawer-toggle" />
-      
+
       {/* Main content */}
       <div className="drawer-content flex flex-col">
         {/* Navbar */}
@@ -43,7 +43,9 @@ const AdminDashboard = () => {
 
         {/* Page content */}
         <main className="flex-1 p-4">
-          <div className="text-2xl text-center font-bold mb-4">Welcome, {user?.name}</div>
+          <div className="text-2xl text-center font-bold mb-4">
+            Welcome, {user?.name}
+          </div>
           <Outlet />
         </main>
       </div>
@@ -63,7 +65,9 @@ const AdminDashboard = () => {
                     to="/dashboard"
                     className={({ isActive }) =>
                       `block py-2 px-3 rounded font-semibold hover:text-white hover:bg-[#638efb] ${
-                        isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
+                        isActive
+                          ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white"
+                          : ""
                       }`
                     }
                   >
@@ -75,7 +79,9 @@ const AdminDashboard = () => {
                     to="/dashboard/users"
                     className={({ isActive }) =>
                       `flex items-center gap-2 py-2 px-3 rounded hover:text-white hover:bg-[#638efb] ${
-                        isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
+                        isActive
+                          ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white"
+                          : ""
                       }`
                     }
                   >
@@ -87,7 +93,9 @@ const AdminDashboard = () => {
                     to="/adminDashboard/createCourse"
                     className={({ isActive }) =>
                       `flex items-center gap-2 py-2 px-3 rounded hover:text-white hover:bg-[#638efb] ${
-                        isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
+                        isActive
+                          ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white"
+                          : ""
                       }`
                     }
                   >
@@ -99,7 +107,9 @@ const AdminDashboard = () => {
                     to="/adminDashboard/EnrollmentManagment"
                     className={({ isActive }) =>
                       `flex items-center gap-2 py-2 px-3 rounded hover:text-white hover:bg-[#638efb] ${
-                        isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
+                        isActive
+                          ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white"
+                          : ""
                       }`
                     }
                   >
@@ -108,14 +118,16 @@ const AdminDashboard = () => {
                 </li>
                 <li>
                   <NavLink
-                    to="/dashboard/allRentItems"
+                    to="/adminDashboard/AssignmentManagment"
                     className={({ isActive }) =>
                       `flex items-center gap-2 py-2 px-3 rounded hover:text-white hover:bg-[#638efb] ${
-                        isActive ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white" : ""
+                        isActive
+                          ? "bg-linear-to-r from-[#638efb] via-[#4f76e5] to-[#1b59ba] text-white"
+                          : ""
                       }`
                     }
                   >
-                    <FaUsers /> All Rent Items
+                    <FaUsers /> Assignment Managment
                   </NavLink>
                 </li>
               </>
